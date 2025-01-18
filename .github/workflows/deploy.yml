@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v3
 
       - name: Deploy to EC2
@@ -36,7 +36,7 @@ jobs:
               ENV_NAME="test"
             elif [ "${{ github.ref_name }}" == "staging" ]; then
               ENV_PORT=5176
-              ENV_NAME="staging"
+              ENV_NAME="stag"
             else
               echo "Unknown branch. Skipping deployment."
               exit 1
