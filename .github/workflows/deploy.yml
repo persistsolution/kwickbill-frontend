@@ -1,4 +1,4 @@
-name: Deploy React App
+name: Deploy React App to EC2
 
 on:
   push:
@@ -11,6 +11,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
@@ -23,7 +24,7 @@ jobs:
           key: ${{ secrets.EC2_KEY }}
           port: 22
           script: |
-            # Determine the environment based on the branch
+            # Determine environment from branch name
             if [ "${{ github.ref_name }}" == "main" ]; then
               ENV_PORT=5173
               ENV_NAME="main"
@@ -44,17 +45,16 @@ jobs:
             echo "Deploying branch $ENV_NAME on port $ENV_PORT"
 
             # Navigate to the project directory
-            cd /home/ubuntu/multi-branch-react || exit 1
+            cd /home/ubuntu/multi-branch-react
 
-            # Pull the latest changes
+            # Pull the latest code
             git reset --hard
-            git clean -fd
             git pull origin ${{ github.ref_name }}
 
-            # Install dependencies and build the app
+            # Install dependencies
             npm install
 
-            # Restart the environment using PM2
+            # Start the app with PM2
             pm2 delete $ENV_NAME || true
             pm2 start "npm run dev -- --port $ENV_PORT --host 0.0.0.0" --name $ENV_NAME
             pm2 save
