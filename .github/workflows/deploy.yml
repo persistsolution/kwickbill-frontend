@@ -49,7 +49,7 @@ jobs:
 
             # Pull the latest code
             git reset --hard
-            git pull origin ${{ github.ref_name }}
+            git pull origin $BRANCH_NAME
 
             # Install dependencies
             npm install
