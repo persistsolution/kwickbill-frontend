@@ -1,74 +1,60 @@
-name: Deploy Vite App
+name: Deploy React App
 
 on:
   push:
     branches:
-      - main       # Trigger for the main environment
-      - dev        # Trigger for the dev environment
-      - test       # Trigger for the test environment
-      - staging    # Trigger for the staging environment
+      - main
+      - dev
+      - test
+      - staging
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
-    # Step 1: Checkout the repository
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    # Step 2: Set up Node.js
-    - name: Set up Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # Determine the environment based on the branch
+            if [ "${{ github.ref_name }}" == "main" ]; then
+              ENV_PORT=5173
+              ENV_NAME="main"
+            elif [ "${{ github.ref_name }}" == "dev" ]; then
+              ENV_PORT=5174
+              ENV_NAME="dev"
+            elif [ "${{ github.ref_name }}" == "test" ]; then
+              ENV_PORT=5175
+              ENV_NAME="test"
+            elif [ "${{ github.ref_name }}" == "staging" ]; then
+              ENV_PORT=5176
+              ENV_NAME="staging"
+            else
+              echo "Unknown branch. Skipping deployment."
+              exit 1
+            fi
 
-    # Step 3: Install dependencies
-    - name: Install dependencies
-      run: npm install
+            echo "Deploying branch $ENV_NAME on port $ENV_PORT"
 
-    # Step 4: Build the Vite app
-    - name: Build the Vite app
-      run: npm run build
+            # Navigate to the project directory
+            cd /home/ubuntu/multi-branch-react || exit 1
 
-    # Step 5: Deploy to EC2
-    - name: Deploy to EC2
-      uses: appleboy/ssh-action@v0.1.8
-      with:
-        host: ${{ secrets.EC2_HOST }}
-        username: ${{ secrets.EC2_USER }}
-        key: ${{ secrets.EC2_KEY }}
-        port: 22
-        script: |
-          # Determine the environment based on the branch
-          if [ "${{ github.ref_name }}" == "main" ]; then
-            ENV_PORT=5173
-            ENV_NAME="main"
-          elif [ "${{ github.ref_name }}" == "dev" ]; then
-            ENV_PORT=5174
-            ENV_NAME="dev"
-          elif [ "${{ github.ref_name }}" == "test" ]; then
-            ENV_PORT=5175
-            ENV_NAME="test"
-          elif [ "${{ github.ref_name }}" == "staging" ]; then
-            ENV_PORT=5176
-            ENV_NAME="staging"
-          else
-            echo "Unknown branch. Skipping deployment."
-            exit 1
-          fi
+            # Pull the latest changes
+            git reset --hard
+            git clean -fd
+            git pull origin ${{ github.ref_name }}
 
-          # Navigate to the project directory
-          cd /home/ubuntu/multi-branch-react
+            # Install dependencies and build the app
+            npm install
 
-          # Pull the latest changes
-          git reset --hard
-          git pull origin ${{ github.ref_name }}
-
-          # Install dependencies and build the app
-          npm install
-
-          # Start the environment using PM2
-          pm2 delete $ENV_NAME || true
-          pm2 start "npm run dev -- --port $ENV_PORT --host 0.0.0.0" --name $ENV_NAME
-          pm2 save
+            # Restart the environment using PM2
+            pm2 delete $ENV_NAME || true
+            pm2 start "npm run dev -- --port $ENV_PORT --host 0.0.0.0" --name $ENV_NAME
+            pm2 save
