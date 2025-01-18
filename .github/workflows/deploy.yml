@@ -1,45 +1,60 @@
-- name: Deploy to EC2
-  uses: appleboy/ssh-action@v0.1.8
-  with:
-    host: ${{ secrets.EC2_HOST }}
-    username: ${{ secrets.EC2_USER }}
-    key: ${{ secrets.EC2_KEY }}
-    port: 22
-    script: |
-      # Extract branch name from full ref
-      BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}")
+name: Deploy React App to EC2
 
-      # Determine environment from branch name
-      if [ "$BRANCH_NAME" == "main" ]; then
-        ENV_PORT=5173
-        ENV_NAME="main"
-      elif [ "$BRANCH_NAME" == "dev" ]; then
-        ENV_PORT=5174
-        ENV_NAME="dev"
-      elif [ "$BRANCH_NAME" == "test" ]; then
-        ENV_PORT=5175
-        ENV_NAME="test"
-      elif [ "$BRANCH_NAME" == "staging" ]; then
-        ENV_PORT=5176
-        ENV_NAME="stag"
-      else
-        echo "Unknown branch. Skipping deployment."
-        exit 1
-      fi
+on:
+  push:
+    branches:
+      - main
+      - dev
+      - test
+      - staging
 
-      echo "Deploying branch $ENV_NAME on port $ENV_PORT"
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-      # Navigate to the project directory
-      cd /home/ubuntu/multi-branch-react
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-      # Pull the latest code
-      git reset --hard
-      git pull origin $BRANCH_NAME
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v0.1.8
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_KEY }}
+          port: 22
+          script: |
+            # Determine environment from branch name
+            if [ "${{ github.ref_name }}" == "main" ]; then
+              ENV_PORT=5173
+              ENV_NAME="main"
+            elif [ "${{ github.ref_name }}" == "dev" ]; then
+              ENV_PORT=5174
+              ENV_NAME="dev"
+            elif [ "${{ github.ref_name }}" == "test" ]; then
+              ENV_PORT=5175
+              ENV_NAME="test"
+            elif [ "${{ github.ref_name }}" == "staging" ]; then
+              ENV_PORT=5176
+              ENV_NAME="staging"
+            else
+              echo "Unknown branch. Skipping deployment."
+              exit 1
+            fi
 
-      # Install dependencies
-      npm install
+            echo "Deploying branch $ENV_NAME on port $ENV_PORT"
 
-      # Start the app with PM2
-      pm2 delete $ENV_NAME || true
-      pm2 start "npm run dev -- --port $ENV_PORT --host 0.0.0.0" --name $ENV_NAME
-      pm2 save
+            # Navigate to the project directory
+            cd /home/ubuntu/multi-branch-react
+
+            # Pull the latest code
+            git reset --hard
+            git pull origin ${{ github.ref_name }}
+
+            # Install dependencies
+            npm install
+
+            # Start the app with PM2
+            pm2 delete $ENV_NAME || true
+            pm2 start "npm run dev -- --port $ENV_PORT --host 0.0.0.0" --name $ENV_NAME
+            pm2 save
